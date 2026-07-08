@@ -31,7 +31,7 @@ import Svg, { Circle, Defs, LinearGradient, Path, Stop } from "react-native-svg"
 import { Button } from "@/src/components/Button";
 import { FaceMeshOverlay } from "@/src/components/FaceMeshOverlay";
 import { SkeletonOverlay } from "@/src/components/SkeletonOverlay";
-import { findExercise } from "@/src/data/mock";
+import { exercisesApi, Exercise, coachApi, sessionsApi } from "@/src/api/apiClient";
 import { useTheme } from "@/src/theme/ThemeProvider";
 import { patientFlow } from "@/src/runtime/client";
 
@@ -47,9 +47,17 @@ const FEEDBACK_CYCLE = [
 export default function LiveSession() {
   const router = useRouter();
   const { palette } = useTheme();
-  const { id } = useLocalSearchParams<{ id?: string }>();
-  const exercise = findExercise(id || "ex-1");
-  const isFacial = exercise.category === "facial";
+  const { id, mode, assignmentId } = useLocalSearchParams<{ id?: string; mode?: string; assignmentId?: string }>();
+  const [exercise, setExercise] = useState<Exercise | null>(null);
+  useEffect(() => {
+    (async () => {
+      try {
+        const e = await exercisesApi.get(Number(id) || 1);
+        setExercise(e);
+      } catch { /* ignore */ }
+    })();
+  }, [id]);
+  const isFacial = exercise?.category === "facial";
 
   const cameraRef = useRef<CameraView | null>(null);
   const [permission, requestPermission] = useCameraPermissions();
@@ -198,7 +206,7 @@ export default function LiveSession() {
 
     const rep = setInterval(() => {
       if (recording) {
-        setReps((r) => Math.min(exercise.reps, r + 1));
+        setReps((r) => Math.min(exercise?.reps ?? 10, r + 1));
         Haptics.selectionAsync().catch(() => {});
       }
     }, 4500);
@@ -207,7 +215,7 @@ export default function LiveSession() {
       clearInterval(t);
       clearInterval(rep);
     };
-  }, [recording, exercise.reps, elapsedSeconds]);
+  }, [recording, exercise?.reps, elapsedSeconds]);
 
   const handleFinish = async () => {
     let activeUri = latestVideoUriRef.current;
@@ -275,10 +283,38 @@ export default function LiveSession() {
       setUploading(false);
 
       if (result.status === "SUCCEEDED") {
+        // Persist as medical rehab session OR record coach practice.
+        const durationSec = latestDurationRef.current || durationSeconds || 10;
+        const rom = result.min_angle !== null && result.max_angle !== null
+          ? { min_angle: result.min_angle, max_angle: result.max_angle }
+          : {};
+        const score = result.movement_score !== null ? result.movement_score * 100 : null;
+        try {
+          if (mode === "medical" && exercise) {
+            await sessionsApi.create({
+              assignment_id: assignmentId ? Number(assignmentId) : null,
+              exercise_id: exercise.id,
+              duration_seconds: durationSec,
+              accuracy: score,
+              movement_score: score,
+              reps_completed: reps,
+              ...rom,
+            });
+          } else if (exercise) {
+            await coachApi.practice({
+              exercise_id: exercise.id,
+              duration_seconds: durationSec,
+              accuracy: score,
+              movement_score: score,
+              reps_completed: reps,
+              ...rom,
+            });
+          }
+        } catch { /* ignore */ }
         Alert.alert(
           "AI Analysis Complete",
-          `ROM: ${result.min_angle !== null && result.max_angle !== null ? `${Math.round(result.min_angle)}° to ${Math.round(result.max_angle)}°` : "N/A"}\nMovement Score: ${result.movement_score !== null ? Math.round(result.movement_score * 100) : "N/A"}%`,
-          [{ text: "View History", onPress: () => router.replace("/(patient)/session-history") }]
+          `ROM: ${result.min_angle !== null && result.max_angle !== null ? `${Math.round(result.min_angle)}° to ${Math.round(result.max_angle)}°` : "N/A"}\nMovement Score: ${result.movement_score !== null ? Math.round(result.movement_score * 100) : "N/A"}%${mode === "medical" ? "\nSaved to medical history." : "\nAI Coach practice - not saved to medical history."}`,
+          [{ text: mode === "medical" ? "View History" : "OK", onPress: () => router.replace(mode === "medical" ? "/(patient)/session-history" : "/(patient)/(tabs)") }]
         );
       } else {
         Alert.alert(
@@ -414,7 +450,7 @@ export default function LiveSession() {
               }}
             />
             <Text style={{ color: "#fff", fontSize: 13, fontWeight: "700" }}>
-              {exercise.name}
+              {exercise?.name ?? "Session"}
             </Text>
           </View>
 
@@ -438,7 +474,7 @@ export default function LiveSession() {
 
         {/* Joint angle pills */}
         <View style={styles.pillsRow}>
-          <AnglePill label={isFacial ? "Symmetry" : exercise.joint} value={isFacial ? `${82}%` : `${angle}°`} />
+          <AnglePill label={isFacial ? "Symmetry" : (exercise?.joint ?? "Angle")} value={isFacial ? `${82}%` : `${angle}°`} />
           <AnglePill label="Score" value={String(score)} accent={palette.success} />
           {recording ? (
             <AnglePill label="Rec Time" value={`${elapsedSeconds}s`} accent={palette.danger} />
@@ -484,7 +520,7 @@ export default function LiveSession() {
             </Text>
             <Text style={{ color: "#fff", fontSize: 22, fontWeight: "800", marginTop: 2 }}>
               {reps}
-              <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 14 }}> / {exercise.reps}</Text>
+              <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 14 }}> / {exercise?.reps ?? 10}</Text>
             </Text>
           </View>
 

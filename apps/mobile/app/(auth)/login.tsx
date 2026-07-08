@@ -35,10 +35,10 @@ export default function Login() {
   const meta = ROLE_META[role];
 
   const [email, setEmail] = useState(
-    role === "patient" ? "shaurya@example.com" : role === "doctor" ? "neha@medmove.ai" : "admin@medmove.ai",
+    role === "patient" ? "aarav@medmove.ai" : role === "doctor" ? "neha@medmove.ai" : "admin@medmove.ai",
   );
   const [password, setPassword] = useState(
-    role === "patient" ? "StrongP@ssw0rd!" : "demo1234"
+    role === "patient" ? "PatientPass1!" : role === "doctor" ? "DoctorPass1!" : "AdminPass1!"
   );
   const [loading, setLoading] = useState(false);
 
@@ -49,12 +49,15 @@ export default function Login() {
     }
     setLoading(true);
     try {
-      await patientFlow.login(email.trim().toLowerCase(), password);
-      await storage.setItem("medmove.role", role);
-      await storage.setItem("medmove.email", email.trim().toLowerCase());
+      const user = await patientFlow.login(email.trim().toLowerCase(), password);
+      const actualRole = user.role || role;
+      await storage.setItem("medmove.role", actualRole);
+      await storage.setItem("medmove.email", user.email);
+      await storage.setItem("medmove.name", user.name);
+      await storage.setItem("medmove.userId", user.id);
       setLoading(false);
-      if (role === "patient") router.replace("/(patient)/(tabs)");
-      else if (role === "doctor") router.replace("/(doctor)/(tabs)");
+      if (actualRole === "patient") router.replace("/(patient)/(tabs)");
+      else if (actualRole === "doctor") router.replace("/(doctor)/(tabs)");
       else router.replace("/(admin)/(tabs)");
     } catch (err: any) {
       setLoading(false);

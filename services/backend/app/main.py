@@ -50,6 +50,14 @@ def create_app(
         app.state.metrics = metrics
         app.state.rate_limiter = rate_limiter
         app.state.logger = logger
+
+        # Seed default users, exercises, doctor-patient links, and demo data.
+        try:
+            from app.bootstrap import bootstrap_data
+            bootstrap_data(app)
+        except Exception as exc:  # noqa: BLE001
+            log_event(logger, 'warning', 'bootstrap_failed', error=str(exc))
+
         yield
         engine.dispose()
 
@@ -151,6 +159,9 @@ def create_app(
     app.include_router(videos.router)
     app.include_router(analysis.router)
     app.include_router(analyze.router)
+
+    from app.api.rehab import register_routers as _register_rehab_routers
+    _register_rehab_routers(app)
 
     return app
 

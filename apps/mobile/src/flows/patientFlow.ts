@@ -28,11 +28,27 @@ export class PatientFlowService {
     info("flow", "register:complete", { email: payload.email });
   }
 
-  async login(email: string, password: string): Promise<void> {
+  async login(email: string, password: string): Promise<{ role: string; name: string; email: string; id: number }> {
     info("flow", "login:start", { email });
-    const login = await this.api.login({ email, password });
-    await this.tokenStore.setToken(login.access_token);
+    // Use extended endpoint (returns user + refresh) via direct fetch.
+    const { API_BASE_URL } = await import("../config/runtime");
+    const resp = await fetch(`${API_BASE_URL}/api/v1/auth/login-extended`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!resp.ok) {
+      let msg = `Login failed (${resp.status})`;
+      try {
+        const p = await resp.json();
+        msg = p?.error?.message ?? p?.detail ?? msg;
+      } catch { /* ignore */ }
+      throw new Error(msg);
+    }
+    const data = await resp.json();
+    await this.tokenStore.setToken(data.access_token);
     info("flow", "login:complete", { email });
+    return data.user;
   }
 
   async logout(): Promise<void> {

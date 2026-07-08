@@ -3,11 +3,22 @@ import { Image } from "expo-image";
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { PatientRecord } from "@/src/data/mock";
 import { useTheme } from "@/src/theme/ThemeProvider";
 
+interface PatientView {
+  id: number | string;
+  name: string;
+  age?: number | null;
+  condition?: string | null;
+  compliance: number;
+  recovery: number;
+  risk: "low" | "medium" | "high" | string;
+  avatar?: string;
+  avatar_url?: string | null;
+}
+
 interface Props {
-  patient: PatientRecord;
+  patient: PatientView;
   onPress?: () => void;
   testID?: string;
 }
@@ -20,6 +31,10 @@ export const PatientCard: React.FC<Props> = ({ patient, onPress, testID }) => {
       : patient.risk === "medium"
         ? palette.warning
         : palette.success;
+  const avatar =
+    patient.avatar_url ||
+    patient.avatar ||
+    "https://images.pexels.com/photos/3771089/pexels-photo-3771089.jpeg?auto=compress&cs=tinysrgb&w=300";
 
   return (
     <Pressable testID={testID} onPress={onPress}>
@@ -46,7 +61,7 @@ export const PatientCard: React.FC<Props> = ({ patient, onPress, testID }) => {
             }}
           >
             <Image
-              source={{ uri: patient.avatar }}
+              source={{ uri: avatar }}
               style={{ width: "100%", height: "100%" }}
               contentFit="cover"
             />

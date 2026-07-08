@@ -1,35 +1,36 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React, { useState, useEffect } from "react";
-import { ScrollView, StyleSheet, Text, View, ActivityIndicator } from "react-native";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useState } from "react";
+import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ScreenHeader } from "@/src/components/ScreenHeader";
+import { sessionsApi, RehabSession } from "@/src/api/apiClient";
 import { useTheme } from "@/src/theme/ThemeProvider";
-import { patientFlow } from "@/src/runtime/client";
-import type { AnalysisItem } from "@/src/types/contracts";
 
 export default function SessionHistory() {
   const { palette, radii, spacing, shadow } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const [sessions, setSessions] = useState<AnalysisItem[]>([]);
+  const [sessions, setSessions] = useState<RehabSession[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function loadHistory() {
-      try {
-        const history = await patientFlow.getHistory();
-        setSessions(history || []);
-      } catch (err) {
-        console.error("Failed to load history", err);
-      } finally {
-        setLoading(false);
-      }
+  const load = useCallback(async () => {
+    setError(null);
+    try {
+      setSessions(await sessionsApi.list({ limit: 50 }));
+    } catch (e: any) {
+      setError(e?.message ?? "Unable to load sessions");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
-    loadHistory();
   }, []);
+
+  useFocusEffect(useCallback(() => { setLoading(true); load(); }, [load]));
 
   return (
     <View style={{ flex: 1, backgroundColor: palette.background }}>
@@ -43,6 +44,8 @@ export default function SessionHistory() {
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
           <ActivityIndicator size="large" color={palette.primary} />
         </View>
+      ) : error ? (
+        <Text style={{ color: palette.danger, padding: 24 }}>{error}</Text>
       ) : sessions.length === 0 ? (
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 24 }}>
           <Ionicons name="videocam-off-outline" size={48} color={palette.textSecondary} style={{ marginBottom: 12 }} />
@@ -50,7 +53,7 @@ export default function SessionHistory() {
             No sessions recorded yet
           </Text>
           <Text style={{ color: palette.textSecondary, fontSize: 13, marginTop: 6, textAlign: "center", lineHeight: 20 }}>
-            Perform your first guided assessment to view your AI analysis history here.
+            Complete a doctor-assigned exercise to build your rehab history.
           </Text>
         </View>
       ) : (
@@ -61,20 +64,19 @@ export default function SessionHistory() {
             paddingBottom: insets.bottom + 40,
             gap: 10,
           }}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={palette.primary} />
+          }
         >
           {sessions.map((s) => {
-            const isFacial = s.analysis_type === "facial_expression";
-            const scorePercent = s.movement_score !== null ? Math.round(s.movement_score * 100) : 0;
-            const dateStr = s.created_at ? new Date(s.created_at).toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-              year: "numeric"
-            }) : "N/A";
-            
+            const score = Math.round(s.movement_score ?? 0);
+            const dateStr = new Date(s.completed_at).toLocaleDateString("en-US", {
+              month: "short", day: "numeric", year: "numeric",
+            });
             return (
               <View
-                key={s.video_id}
-                testID={`session-${s.video_id}`}
+                key={s.id}
+                testID={`session-${s.id}`}
                 style={[
                   {
                     backgroundColor: palette.surface,
@@ -89,55 +91,50 @@ export default function SessionHistory() {
                 <View style={{ flexDirection: "row", alignItems: "center" }}>
                   <View
                     style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: 12,
+                      width: 44, height: 44, borderRadius: 12,
                       backgroundColor: palette.primaryMuted,
-                      alignItems: "center",
-                      justifyContent: "center",
+                      alignItems: "center", justifyContent: "center",
                     }}
                   >
-                    <Ionicons
-                      name={isFacial ? "happy-outline" : "body-outline"}
-                      size={20}
-                      color={palette.primary}
-                    />
+                    <Ionicons name="body-outline" size={20} color={palette.primary} />
                   </View>
                   <View style={{ flex: 1, marginLeft: 12 }}>
                     <Text style={{ color: palette.textPrimary, fontSize: 15, fontWeight: "700" }}>
-                      {isFacial ? "Facial Expression Analysis" : "Movement Joint Analysis"}
+                      {s.exercise_name ?? "Rehab session"}
                     </Text>
                     <Text style={{ color: palette.textSecondary, fontSize: 12, marginTop: 2 }}>
-                      {dateStr} · ID: #{s.video_id}
+                      {dateStr} · {Math.floor(s.duration_seconds / 60)}m {s.duration_seconds % 60}s
                     </Text>
                   </View>
                   <View
                     style={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: 24,
+                      width: 48, height: 48, borderRadius: 24,
                       backgroundColor:
-                        scorePercent >= 85 ? palette.success + "22" : scorePercent >= 75 ? palette.warning + "22" : palette.danger + "22",
-                      alignItems: "center",
-                      justifyContent: "center",
+                        score >= 85 ? palette.success + "22" : score >= 75 ? palette.warning + "22" : palette.danger + "22",
+                      alignItems: "center", justifyContent: "center",
                     }}
                   >
                     <Text
                       style={{
-                        color: scorePercent >= 85 ? palette.success : scorePercent >= 75 ? palette.warning : palette.danger,
-                        fontSize: 16,
-                        fontWeight: "800",
+                        color: score >= 85 ? palette.success : score >= 75 ? palette.warning : palette.danger,
+                        fontSize: 16, fontWeight: "800",
                       }}
                     >
-                      {scorePercent || "—"}
+                      {score || "—"}
                     </Text>
                   </View>
                 </View>
                 <View style={{ flexDirection: "row", marginTop: 12, gap: 10 }}>
                   <Stat label="ROM Min" value={s.min_angle !== null ? `${Math.round(s.min_angle)}°` : "—"} />
                   <Stat label="ROM Max" value={s.max_angle !== null ? `${Math.round(s.max_angle)}°` : "—"} />
-                  <Stat label="Status" value={s.status} />
+                  <Stat label="Accuracy" value={s.accuracy !== null ? `${Math.round(s.accuracy)}%` : "—"} />
                 </View>
+                {s.doctor_feedback ? (
+                  <View style={{ marginTop: 10, padding: 10, borderRadius: 8, backgroundColor: palette.surfaceAlt }}>
+                    <Text style={{ color: palette.textSecondary, fontSize: 10, fontWeight: "700", letterSpacing: 1 }}>DOCTOR FEEDBACK</Text>
+                    <Text style={{ color: palette.textPrimary, fontSize: 13, marginTop: 4 }}>{s.doctor_feedback}</Text>
+                  </View>
+                ) : null}
               </View>
             );
           })}

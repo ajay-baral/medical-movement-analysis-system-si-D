@@ -5,8 +5,16 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LineChart } from "@/src/components/LineChart";
 import { MetricCard } from "@/src/components/MetricCard";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
-import { PROGRESS_WEEKLY } from "@/src/data/mock";
 import { useTheme } from "@/src/theme/ThemeProvider";
+
+const PROGRESS_WEEKLY = [
+  { label: "W1", rom: 62, accuracy: 70, compliance: 60 },
+  { label: "W2", rom: 70, accuracy: 75, compliance: 72 },
+  { label: "W3", rom: 78, accuracy: 80, compliance: 80 },
+  { label: "W4", rom: 85, accuracy: 84, compliance: 88 },
+  { label: "W5", rom: 89, accuracy: 88, compliance: 92 },
+  { label: "W6", rom: 92, accuracy: 91, compliance: 94 },
+];
 
 export default function AdminAnalytics() {
   const { palette, radii, spacing, shadow } = useTheme();

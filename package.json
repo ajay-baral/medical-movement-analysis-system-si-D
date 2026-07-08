@@ -15,8 +15,8 @@
     "test": "npm run -w apps/mobile test && PYTHONPATH=services/backend services/backend/venv/bin/pytest services/backend/tests -q"
   },
   "engines": {
-    "node": ">=22.0.0",
-    "npm": ">=10.0.0"
+    "node": ">=20.0.0",
+    "npm": ">=9.0.0"
   },
   "dependencies": {},
   "overrides": {

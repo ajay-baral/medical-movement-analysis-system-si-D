@@ -3,11 +3,24 @@ import { Image } from "expo-image";
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { ExerciseTemplate } from "@/src/data/mock";
 import { useTheme } from "@/src/theme/ThemeProvider";
 
+interface ExerciseView {
+  id: number | string;
+  name: string;
+  body_part?: string;
+  bodyPart?: string;
+  reps: number;
+  duration_label?: string;
+  duration?: string;
+  target_rom?: string;
+  targetROM?: string;
+  thumbnail_url?: string;
+  thumbnail?: string;
+}
+
 interface Props {
-  exercise: ExerciseTemplate;
+  exercise: ExerciseView;
   onPress?: () => void;
   scheduledAt?: string;
   status?: "pending" | "completed" | "missed";
@@ -31,6 +44,11 @@ export const ExerciseCard: React.FC<Props> = ({
     : isMissed
       ? palette.danger
       : palette.primary;
+
+  const bodyPart = exercise.body_part ?? exercise.bodyPart ?? "";
+  const duration = exercise.duration_label ?? exercise.duration ?? "";
+  const targetROM = exercise.target_rom ?? exercise.targetROM ?? "";
+  const thumb = exercise.thumbnail_url ?? exercise.thumbnail ?? "";
 
   return (
     <Pressable testID={testID} onPress={onPress}>
@@ -57,7 +75,7 @@ export const ExerciseCard: React.FC<Props> = ({
             }}
           >
             <Image
-              source={{ uri: exercise.thumbnail }}
+              source={{ uri: thumb }}
               style={{ width: "100%", height: "100%" }}
               contentFit="cover"
             />
@@ -70,7 +88,7 @@ export const ExerciseCard: React.FC<Props> = ({
               {exercise.name}
             </Text>
             <Text style={{ color: palette.textSecondary, fontSize: 12, marginTop: 2 }}>
-              {exercise.bodyPart} · {exercise.reps} reps · {exercise.duration}
+              {bodyPart} · {exercise.reps} reps · {duration}
             </Text>
             <View style={{ flexDirection: "row", alignItems: "center", marginTop: 8, gap: 6 }}>
               <View
@@ -82,7 +100,7 @@ export const ExerciseCard: React.FC<Props> = ({
                 }}
               >
                 <Text style={{ color: palette.primary, fontSize: 10, fontWeight: "700" }}>
-                  ROM {exercise.targetROM}
+                  ROM {targetROM}
                 </Text>
               </View>
               {scheduledAt ? (
